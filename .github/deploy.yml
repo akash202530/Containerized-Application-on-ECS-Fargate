@@ -1,0 +1,36 @@
+name: Build and Deploy to ECS
+on:
+  push: { branches: [main] }
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - run: cd application && npm ci && npm test
+
+  build-and-deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+      - uses: aws-actions/amazon-ecr-login@v2
+        id: ecr-login
+      - name: Build, tag, push image
+        run: |
+          ECR_REGISTRY=${{ steps.ecr-login.outputs.registry }}
+          IMAGE_TAG=${{ github.sha }}
+          docker build -t $ECR_REGISTRY/devops-api:$IMAGE_TAG application/
+          docker push $ECR_REGISTRY/devops-api:$IMAGE_TAG
+          docker tag $ECR_REGISTRY/devops-api:$IMAGE_TAG $ECR_REGISTRY/devops-api:latest
+          docker push $ECR_REGISTRY/devops-api:latest
+      - name: Update ECS service
+        run: |
+          aws ecs update-service --cluster devops-api-cluster --service devops-api --force-new-deployment
