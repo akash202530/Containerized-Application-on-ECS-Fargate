@@ -17,7 +17,7 @@ resource "aws_lb_target_group" "app" {
     healthy_threshold   = 2
     unhealthy_threshold = 3
     interval            = 30
-  }
+  } 
 }
 
 resource "aws_lb_listener" "http" {
